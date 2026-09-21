@@ -29,7 +29,10 @@ Unity版本: 2022.3.13f1
 | WorkBuddy 配置 | — | `C:\Users\18807\.workbuddy\mcp.json` |
 | VS Code 配置 | — | `%APPDATA%\Code\User\mcp.json` |
 
-关键取舍：**官方推荐的 UPM git URL 方式在本机不可用**（网络原因），改用「重打包 tarball + `file:` 引用」，效果等价。
+> [!success] 更正说明（2026-09-21 14:20 复核）
+> 初版笔记曾判断「GitHub 被阻断、本机无 git」，**该结论已推翻**。复核实测：本机装的是 **git 2.55.0.windows.5**（在系统 PATH），`git ls-remote https://github.com/CoplayDev/unity-mcp.git beta` **可正常返回**，`github.com` 与 `codeload.github.com` 均 200。
+> 当初的报错来自 WorkBuddy 沙箱给子进程注入的本地代理（`HTTP_PROXY=127.0.0.1:54562`），是**工具环境假象**，不是机器网络问题。
+> 因此：**官方 UPM git URL 方式是可行且更推荐的**；本次采用的 tarball 法依然有效，作为离线 / 免 git 的备选保留。详见 [[#坑 1（已更正）— 一次被工具环境误导的误判]]。
 
 ---
 
@@ -51,7 +54,8 @@ Unity版本: 2022.3.13f1
 | --- | --- | --- |
 | `uv` / `uvx` | ❌ 未安装 | MCP 服务器的运行基础 |
 | `python` | ⚠️ 只有微软商店占位 stub | 跑不出版本号 |
-| `git` | ❌ 系统内不存在 | 本机版本管理用 **SlikSvn** |
+| `git` | ✅ 已装 **2.55.0.windows.5** | `C:\Program Files\Git`，`cmd` 已在系统 PATH |
+| 版本管理 | SVN + Git 并存 | SlikSvn 在 `C:\Program Files\SlikSvn\bin` |
 | `~/.workbuddy/mcp.json` | ❌ 不存在 | 从未配置过 MCP |
 | `%APPDATA%\Code\User\mcp.json` | ❌ 不存在 | — |
 
@@ -59,23 +63,30 @@ Unity版本: 2022.3.13f1
 
 ## 3. 三个关键坑（先看这里，能省几小时）
 
-### 坑 1 — GitHub 的 git 协议与 codeload 被网络阻断
+### 坑 1（已更正）— 一次被工具环境误导的误判
 
-官方安装法是在 Unity 里「Add package from git URL」。本机实测各通道：
+> [!danger] 别重复踩这个思维陷阱
+> **现象**：安装时用 shell 测试 GitHub，`codeload` 返回 502、git 协议连接被重置、`uv` 的 GitHub Release 下载失败 → 顺势判断「GitHub 被墙、本机没 git」，绕道用了重打包 tarball。
+>
+> **真相**：这些报错来自 **WorkBuddy 沙箱给子进程注入的本地代理**（`HTTP_PROXY=http://127.0.0.1:54562`）。复核时直接调用真实环境验证，全部正常：
 
-| 通道 | 结果 |
-| --- | --- |
-| `github.com/.../info/refs?service=git-upload-pack`（git 智能协议） | ❌ 连接被重置 |
-| `codeload.github.com/.../tar.gz` | ❌ 502 Bad Gateway |
-| `api.github.com` | ✅ 可达 |
-| `raw.githubusercontent.com` | ✅ 可达 |
-| `pypi.org` / `package.openupm.com` | ✅ 可达 |
+| 通道 | 初判（沙箱内） | 复核（真实环境） |
+| --- | --- | --- |
+| `git --version` | ❌ 找不到 | ✅ **2.55.0.windows.5** |
+| `git ls-remote .../unity-mcp.git beta` | ❌ 连接重置 | ✅ 返回 `refs/heads/beta` |
+| `github.com` 页面 | — | ✅ 200 |
+| `codeload.github.com/...tar.gz` | ❌ 502 | ✅ 200（仅慢） |
+| `api.github.com` | ✅ | ✅ |
+| `pypi.org` / `package.openupm.com` | ✅ | ✅ |
 
-**结论**：Unity 的 git URL 安装**必然失败**，而且系统里连 git 都没有。
-**对策**：走 `api.github.com` 下载 beta 源码包 → 抽出 `MCPForUnity/` → **重打包成标准 UPM tarball** → manifest 用 `file:` 引用。
+> [!tip] 教训
+> **工具沙箱的网络代理会污染网络类结论。** 凡是「网络不通」的判断，都要意识到它可能只是执行环境的代理行为；下结论前最好用一条最直接的命令（如 `git ls-remote`）在真实环境复核，而不是从 HTTP 状态码倒推。
 
-> [!warning] 顺带排除的方案
-> OpenUPM（`openupm add com.coplaydev.unity-mcp`）最高只有 **10.2.0**，没有 beta 版，不符合「装 beta 最新」的要求。
+**结论**：官方 `Add package from git URL` 方式**可行**，且比 tarball 法更省心（无绝对路径、可随分支更新）。
+**本次仍采用 tarball 法**（当时基于误判），两种方式都记录在 [[#Step 3 · 安装 Unity 包]]，可随时切换。
+
+> [!note] 顺带确认过的另一条路
+> OpenUPM（`openupm add com.coplaydev.unity-mcp`）最高只有 **10.2.0**，**没有 beta 版**，如需 beta 只能走 git URL 或 tarball。
 
 ### 坑 2 — Unity 报 `Python not found in PATH`
 
@@ -128,9 +139,39 @@ uv tool install mcpforunityserver
 产物：`C:\Users\18807\.local\bin\mcp-for-unity.exe`（同时会注册 `unity-mcp.exe`）
 支持的 transport：`stdio` | `http`，端口参数见 `mcp-for-unity -h`。
 
-### Step 3 · 安装 Unity 包（重打包 tarball 法）
+### Step 3 · 安装 Unity 包
 
-思路：**用 GitHub API 的可达通道拿源码，自己拼一个 UPM 规范 tarball。**
+#### 方式 A · 官方推荐：Package Manager 从 git URL 安装 ✅
+
+本机 git 与网络均正常（见 [[#坑 1（已更正）— 一次被工具环境误导的误判]]），这是**首选**方式。
+
+**图形界面**：`Window → Package Manager → + → Add package from git URL`，填入：
+
+```
+https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#beta
+```
+
+> [!tip] 锚点怎么选
+> `#beta` = beta 分支最新（本次为 `10.2.1-beta.6`）；`#v10.0.0` = 正式 tag（2026-06-30 发布，稳定）；`#main` = 主干。
+> 注意 `?path=/MCPForUnity` **不能省** —— 仓库里只有这个子目录是 UPM 包。
+
+**改 manifest 等价写法**（`Packages/manifest.json`，**先备份**）：
+
+```json
+{
+  "dependencies": {
+    "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#beta"
+  }
+}
+```
+
+优点：无绝对路径、可随分支更新、不污染版本库。
+
+#### 方式 B · 备选：重打包 tarball（本次采用）
+
+适用场景：需要**离线/内网**安装、或确实无法使用 git 时。
+
+思路：**下载仓库源码包，自己拼一个符合 UPM 规范的 tarball。**
 
 ```python
 # 伪代码，核心逻辑
@@ -147,7 +188,7 @@ src  = tarfile.open(fileobj=io.BytesIO(data))
 
 保存位置：`C:\Users\18807\.workbuddy\unity-packages\com.coplaydev.unity-mcp-10.2.1-beta.6.tgz`
 
-然后改 `Packages/manifest.json`（**先备份**）：
+然后把 tarball 写进 `Packages/manifest.json`（**先备份**，这就是**当前已安装状态**）：
 
 ```json
 {
@@ -259,10 +300,11 @@ python-3.13.15-amd64.exe /quiet InstallAllUsers=0 PrependPath=1 `
 ## 8. 遗留事项与注意
 
 > [!warning] 提交 SVN 前请注意
-> `manifest.json` 里那行是**绝对本地路径**的 `file:` 引用，提交会让同事的工程解析失败。
-> 建议：**提交前撤掉该行**，或改用官方 git URL（需先解决 git 与网络问题）。
+> 方式 B 写进 `manifest.json` 的是**绝对本地路径**的 `file:` 引用，提交会让同事的工程解析失败。
+> 建议二选一：**提交前撤掉该行**；或直接切到 [[#方式 A · 官方推荐：Package Manager 从 git URL 安装 ✅|方式 A]] 的 git URL 写法（本机 git 与网络都正常，一步解决）。
 
-- **网络仍是隐患**：Unity 里点 Auto-Setup 时若需联网拉取，可能受代理影响
+- **本机网络正常**：`github.com`、`git` 协议、`codeload`、`pypi.org` 均实测可用；仅 **WorkBuddy 工具沙箱**会给命令注入本地代理，可能导致工具侧偶发网络报错（见坑 1）
+- **方式可随时切换**：把 manifest 那一行从 `file:...tgz` 换成 git URL 即可，无需重装
 - **版本错位属正常**：Unity 包为 `10.2.1-beta.6`，PyPI 服务器包目前最高 `10.2.0`
 - **beta 分支为开发版**：追求稳定可切到正式 tag `v10.0.0`
 - **PATH 依赖**：客户端配置里写死的是 `~/.local/bin/uvx.exe`，若该文件被移动需同步更新两处配置

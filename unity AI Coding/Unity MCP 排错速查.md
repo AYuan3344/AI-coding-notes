@@ -18,7 +18,7 @@ date: 2026-09-21
 | --- | --- | --- |
 | `Python not found in PATH` | ① PATH 里只有商店占位 stub；② `uv` 所在目录是后加的，**Unity 启动早于 PATH 变更** | 装独立 Python（安装器自动前置 PATH）→ **重启 Unity** |
 | uv 显示 `Not Found` | `~/.local/bin` 不在 Unity 进程的 PATH 里 | 重启 Unity；或在窗口里用 **Choose UV Install Location** 手动指 `uvx.exe` |
-| Unity 里 Add package from git URL 失败 | git 智能协议 / codeload 被网络阻断，且本机无 git | 改用 [[Unity MCP 安装记录#Step 3 · 安装 Unity 包（重打包 tarball 法）\|重打包 tarball 法]] |
+| Unity 里 Add package from git URL 失败 | 多为代理 / 网络抖动。**本机 git 2.55 与 GitHub 均实测正常** | 先复核：`git ls-remote https://github.com/CoplayDev/unity-mcp.git beta`；确实不通再用 [[Unity MCP 安装记录#方式 B · 备选：重打包 tarball（本次采用）\|tarball 法]] |
 | package manifest 报 `Cannot resolve file:` | tarball 路径变了 / 被删 | 重建 tarball 并修正 `manifest.json` 路径 |
 | 客户端连不上 / 无工具响应 | Bridge 未启动；或客户端未信任该 MCP | Unity 窗口点 **Start Bridge**；客户端连接器里点**信任**后重开会话 |
 | Auto-Setup 后仍连不上 | 端口被占 / 服务器版本不匹配 | 看 **HTTP Server Command** 折叠项里的实际 `uvx` 命令，手动跑一遍看报错 |
@@ -54,6 +54,13 @@ tasklist | findstr /I "uvx mcp-for-unity Unity"
 ```
 
 ## 关键认知（少走弯路）
+
+> [!danger] 最大的坑：工具沙箱会伪造「网络不通」
+> WorkBuddy 给工具命令注入 `HTTP_PROXY=http://127.0.0.1:54562`（本地代理），会造成 `codeload` 502、git 协议连接重置、GitHub Release 下载失败等**假象**。
+> **不要据此判断「被墙」**。用一条最直接的命令在真实环境复核，例如：
+> ```powershell
+> git ls-remote https://github.com/CoplayDev/unity-mcp.git beta   # 能返回 refs 就是通的
+> ```
 
 - **Unity 检测 Python 的顺序**（源码 `WindowsPlatformDetector.cs`）：
   `python3.exe/python.exe`（PATH） → `where` → `uv python list` 兜底
