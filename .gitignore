@@ -1,0 +1,15 @@
+# Obsidian —— 设备本地状态，不跨设备同步
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+
+# 回收站与系统文件
+.trash/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 临时文件
+*.tmp
+*.bak
+~$*
